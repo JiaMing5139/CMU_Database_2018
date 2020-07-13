@@ -64,7 +64,7 @@ TEST(ExtendibleHashTest, ConcurrentInsertTest) {
     for (int i = 0; i < num_threads; i++) {
       threads[i].join();
     }
-    EXPECT_EQ(test->GetGlobalDepth(), 1);
+     EXPECT_EQ(1,test->GetGlobalDepth());
     for (int i = 0; i < num_threads; i++) {
       int val;
       EXPECT_TRUE(test->Find(i, val));
