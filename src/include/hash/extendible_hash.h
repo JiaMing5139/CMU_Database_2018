@@ -21,8 +21,8 @@ namespace cmudb {
 template <typename K,typename V>
 struct Bucket{
     Bucket( int depth,int id) :depth(depth),id(id){ }
+    Bucket(const Bucket &) = default;
     void insert(const K & key  , const V & value){
-        std::lock_guard<std::mutex> lockGuard(lock_);
         items[key] = value;
     }
     Bucket() = default;;
@@ -30,7 +30,6 @@ struct Bucket{
 
     int depth = 0;                 // local depth counter
     size_t id = 0;                 // id of Bucket
-    std::mutex lock_ ;// spain lock
 };
 
 template <typename K, typename V>
@@ -49,7 +48,7 @@ public:
   bool Find(const K &key, V &value) override;
   bool Remove(const K &key) override;
   void Insert(const K &key, const V &value) override;
-
+  void splitBucket( std::vector<std::shared_ptr<Bucket<K, V>>>& buckets,std::shared_ptr<Bucket<K,V>> bucket);
 
 private:
   inline  hash_t getTopNBinary(hash_t hash,hash_t n);

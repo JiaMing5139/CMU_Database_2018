@@ -3,6 +3,7 @@
 #include "hash/extendible_hash.h"
 #include "page/page.h"
 #include "queue"
+
 namespace cmudb {
 /*
  * constructor
@@ -10,7 +11,7 @@ namespace cmudb {
  */
     template<typename K, typename V>
     ExtendibleHash<K, V>::ExtendibleHash(size_t size):
-    buckets_(2),bucket_size(size) {
+            buckets_(2), bucket_size(size) {
 
     }
 
@@ -54,12 +55,12 @@ namespace cmudb {
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Find(const K &key, V &value) {
         std::lock_guard<std::mutex> lockGuard(lock);
-        size_t hash =  HashKey(key);
-        size_t buck_id = getTopNBinary(hash,globalDepth);
-        if(buck_id >= buckets_.size()) return false;
-        if(!buckets_[buck_id]) return false;
-        auto it =  buckets_[buck_id]->items.find(key);
-        if(it == buckets_[buck_id]->items.end()) return false;
+        size_t hash = HashKey(key);
+        size_t buck_id = getTopNBinary(hash, globalDepth);
+        if (buck_id >= buckets_.size()) return false;
+        if (!buckets_[buck_id]) return false;
+        auto it = buckets_[buck_id]->items.find(key);
+        if (it == buckets_[buck_id]->items.end()) return false;
         else
             value = it->second;
         return true;
@@ -72,12 +73,12 @@ namespace cmudb {
     template<typename K, typename V>
     bool ExtendibleHash<K, V>::Remove(const K &key) {
         std::lock_guard<std::mutex> lockGuard(lock);
-        size_t hash =  HashKey(key);
-        size_t buck_id = getTopNBinary(hash,globalDepth);
-        if(buck_id >= buckets_.size()) return false;
-        if(!buckets_[buck_id]) return false;
-        auto it =  buckets_[buck_id]->items.find(key);
-        if(it == buckets_[buck_id]->items.end()) return false;
+        size_t hash = HashKey(key);
+        size_t buck_id = getTopNBinary(hash, globalDepth);
+        if (buck_id >= buckets_.size()) return false;
+        if (!buckets_[buck_id]) return false;
+        auto it = buckets_[buck_id]->items.find(key);
+        if (it == buckets_[buck_id]->items.end()) return false;
         else
             buckets_[buck_id]->items.erase(it);
         return true;
@@ -95,58 +96,43 @@ namespace cmudb {
         hash_t bucketId = getTopNBinary(hash, globalDepth);
 
 
-        std::shared_ptr<Bucket<K,V>> targetBucket;
+        std::shared_ptr<Bucket<K, V>> tBucket;
         {
             // 保护bucket
-            if(!buckets_[bucketId]) {
-                buckets_[bucketId] = std::make_shared<Bucket<K,V>>(globalDepth,bucketId);
+            if (!buckets_[bucketId]) {
+                buckets_[bucketId] = std::make_shared<Bucket<K, V>>(globalDepth, bucketId);
             }
-            targetBucket = buckets_[bucketId];
+            tBucket = buckets_[bucketId];
         }
-        targetBucket->insert(key,value);
-        pair_count ++ ;
+        tBucket->insert(key, value);
+        pair_count++;
 
-        if(targetBucket->items.size() > bucket_size){
-            //split
-            assert(globalDepth >= targetBucket->depth);
-           if(globalDepth > targetBucket->depth){
-                // don't need double bucketlist
-
-               for(auto item : targetBucket->items){
-                   size_t tmpKey = HashKey(item.first);
-                   size_t  bId = getTopNBinary(tmpKey,targetBucket->depth+1);
-
-                   if(globalDepth > buckets_[bId]->depth ){
-                       std::shared_ptr<Bucket<K,V>> buck;
-                       buck.reset(new Bucket<K,V>(targetBucket->depth+1,bId));
-                       buck->items.insert(item);
-                       buckets_[bId] = buck;
-                   }else{
-                       buckets_[bId]->items.insert(item);
-                   }
-               }
-            }else{
-                //globalDepth == loacldepth double
-                size_t size = buckets_.size() * 2;
-                std::vector<std::shared_ptr<Bucket<K,V>>> tmp(size);
-                for(size_t i = 0; i < tmp.size() ; ++ i){
-                     size_t buckId = getTopNBinary( i,globalDepth);
-                     tmp[i] = buckets_[buckId];
-                }
-                for(auto item : targetBucket->items){
-                    size_t tmpKey = HashKey(item.first);
-                    size_t  bId = getTopNBinary(tmpKey,targetBucket->depth+1);
-                    if(tmp[bId]->depth == globalDepth){
-                         std::shared_ptr<Bucket<K,V>> buck;
-                         buck.reset(new Bucket<K,V>(targetBucket->depth+1,bId));
-                         buck->items.insert(item);
-                         tmp[bId] = buck;
-                    }else{
-                        tmp[bId]->items.insert(item);
+        std::queue<std::shared_ptr<Bucket<K, V>>> needSplit;
+        needSplit.push(tBucket);
+        //FIXME
+        while (!needSplit.empty()) {
+            auto targetBucket = needSplit.front();
+            needSplit.pop();
+            if (targetBucket->items.size() > bucket_size) {
+                //split
+                assert(globalDepth >= targetBucket->depth);
+                if (globalDepth > targetBucket->depth) {
+                    // don't need double bucketlist
+                    splitBucket(buckets_,targetBucket);
+                    needSplit.push(targetBucket);
+                } else {
+                    //globalDepth == loacldepth double
+                    size_t size = buckets_.size() * 2;
+                    std::vector<std::shared_ptr<Bucket<K, V>>> tmp(size);
+                    for (size_t i = 0; i < tmp.size(); ++i) {
+                        size_t buckId = getTopNBinary(i, globalDepth);
+                        tmp[i] = buckets_[buckId];
                     }
+                    splitBucket(tmp,targetBucket);
+                    needSplit.push(targetBucket);
+                    globalDepth++;
+                    buckets_.swap(tmp);
                 }
-                globalDepth ++ ;
-                buckets_.swap(tmp);
             }
         }
     }
@@ -154,7 +140,30 @@ namespace cmudb {
     template<typename K, typename V>
     typename ExtendibleHash<K, V>::hash_t
     ExtendibleHash<K, V>::getTopNBinary(ExtendibleHash::hash_t hash, ExtendibleHash::hash_t n) {
-        return  hash & ((1 << n) - 1);
+        return hash & ((1 << n) - 1);
+    }
+
+    template<typename K, typename V>
+    void ExtendibleHash<K, V>::splitBucket( std::vector<std::shared_ptr<Bucket<K, V>>>& buckets,std::shared_ptr<Bucket<K,V>> targetbucket) {
+        Bucket<K,V> copy = *targetbucket;
+        for (auto item : copy.items) {
+            size_t tmpKey = HashKey(item.first);
+            size_t bId = getTopNBinary(tmpKey, targetbucket->depth + 1);
+            if (buckets[bId]->id != bId) {
+                //remove from previous bucket
+                targetbucket->items.erase(item.first);
+                //add a new bucket
+                std::shared_ptr<Bucket<K, V>> buck;
+                buck.reset(new Bucket<K, V>(targetbucket->depth + 1, bId));
+                buckets[bId] = buck;
+
+                buckets[bId]->items.insert(item);
+            } else {
+                targetbucket->items.erase(item.first);
+                buckets[bId]->items.insert(item);
+            }
+        }
+        targetbucket->depth++;
     }
 
     template
