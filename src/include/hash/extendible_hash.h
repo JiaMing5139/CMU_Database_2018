@@ -15,21 +15,20 @@
 
 #include "hash/hash_table.h"
 #include <map>
-#include "mutex"
+#include <mutex>
 
 namespace cmudb {
 template <typename K,typename V>
 struct Bucket{
     Bucket( int depth,int id) :depth(depth),id(id){ }
     Bucket(const Bucket &) = default;
+    Bucket() = default;
     void insert(const K & key  , const V & value){
         items[key] = value;
     }
-    Bucket() = default;;
-    std::map<K, V> items;          // key-value pairs
-
-    int depth = 0;                 // local depth counter
-    size_t id = 0;                 // id of Bucket
+    std::map<K, V> items;
+    int depth = 0;
+    size_t id = 0;
 };
 
 template <typename K, typename V>
@@ -51,13 +50,12 @@ public:
   void splitBucket( std::vector<std::shared_ptr<Bucket<K, V>>>& buckets,std::shared_ptr<Bucket<K,V>> bucket);
 
 private:
-  inline  hash_t getTopNBinary(hash_t hash,hash_t n);
-  // add your own member variables here
 
+  // add your own member variables here
+  inline  hash_t getTopNBinary(hash_t hash,hash_t n);
     int globalDepth = 1;
     std::vector<std::shared_ptr<Bucket<K,V>>> buckets_;
     std::mutex lock;
-    int pair_count = 0;
     size_t  bucket_size;
 };
 } // namespace cmudb

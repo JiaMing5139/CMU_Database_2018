@@ -105,11 +105,11 @@ namespace cmudb {
             tBucket = buckets_[bucketId];
         }
         tBucket->insert(key, value);
-        pair_count++;
+//        pair_count++;
 
         std::queue<std::shared_ptr<Bucket<K, V>>> needSplit;
         needSplit.push(tBucket);
-        //FIXME
+
         while (!needSplit.empty()) {
             auto targetBucket = needSplit.front();
             needSplit.pop();

@@ -11,7 +11,8 @@
 
 #include "buffer/replacer.h"
 #include "hash/extendible_hash.h"
-
+#include <list>
+#include <unordered_map>
 namespace cmudb {
 
 template <typename T> class LRUReplacer : public Replacer<T> {
@@ -31,6 +32,10 @@ public:
 
 private:
   // add your member variables here
+  std::list<T> pined_;
+  std::list<T> replacable_;
+ // HashTable<T, typename std::list<T>::iterator> * hashTable;
+ std::unordered_map<T, typename std::list<T>::iterator> hashTable;
 };
 
 } // namespace cmudb
